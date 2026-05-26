@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>天气 - 全球城市温度排行</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;background:linear-gradient(180deg,#0f172a 0%,#1a1a2e 40%,#16213e 100%);min-height:100vh;color:#fff;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+body::before{content:'';position:fixed;top:-200px;left:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,.08) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;bottom:-300px;right:-300px;width:800px;height:800px;background:radial-gradient(circle,rgba(236,72,153,.05) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0}
+
+/* ====== App Shell ====== */
+.app{padding:16px;max-width:600px;margin:0 auto;position:relative;z-index:1}
+
+/* ====== Header ====== */
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 20px;animation:slideDown .5s cubic-bezier(.16,1,.3,1)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-16px)}}
+.header h1{font-size:28px;font-weight:700;letter-spacing:-1px;background:linear-gradient(135deg,#e2e8f0,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header-btn{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:rgba(255,255,255,.7);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s cubic-bezier(.16,1,.3,1);backdrop-filter:blur(10px)}
+.header-btn:hover{background:rgba(255,255,255,.12);color:#fff;transform:scale(1.05)}
+.header-btn:active{transform:scale(.9)}
+
+/* ====== Tabs ====== */
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:rgba(255,255,255,.03);border-radius:14px;padding:4px;backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);animation:slideDown .5s .05s cubic-bezier(.16,1,.3,1) both}
+.tab{flex:1;padding:10px 16px;border-radius:11px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:14px;font-weight:500;cursor:pointer;transition:all .3s cubic-bezier(.16,1,.3,1);text-align:center;position:relative}
+.tab.active{background:rgba(255,255,255,.1);color:#fff;transform:scale(1.02)}
+.tab:hover{color:rgba(255,255,255,.8)}
+.tab:active{transform:scale(.96)}
+
+/* ====== View Transitions ====== */
+.view-container{animation:fadeSlideIn .35s cubic-bezier(.16,1,.3,1)}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateY(12px)}}
+
+/* ====== Glass Card ====== */
+.glass-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;backdrop-filter:blur(20px);margin-bottom:10px;transition:all .3s cubic-bezier(.16,1,.3,1);cursor:pointer;animation:cardIn .4s cubic-bezier(.16,1,.3,1) both}
+.glass-card:hover{background:rgba(255,255,255,.08);transform:translateY(-2px);border-color:rgba(255,255,255,.15);box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.glass-card:active{transform:scale(.97);transition:all .1s}
+@keyframes cardIn{from{opacity:0;transform:translateY(20px) scale(.95)}}
+
+/* ====== City Card ====== */
+.city-card{display:flex;align-items:center;gap:12px}
+.city-card .rank-num{font-size:20px;font-weight:700;color:rgba(255,255,255,.25);min-width:28px}
+.city-card .city-info{flex:1;min-width:0}
+.city-card .city-name{font-size:16px;font-weight:600;color:#e2e8f0;transition:color .2s}
+.glass-card:hover .city-name{color:#fff}
+.city-card .city-weather{font-size:12px;color:rgba(255,255,255,.45);margin-top:2px}
+.city-card .city-indicators{display:flex;gap:10px;margin-top:4px;font-size:11px;color:rgba(255,255,255,.35)}
+.city-card .city-temp{font-size:36px;font-weight:200;letter-spacing:-2px;color:#fff;text-align:right;min-width:80px;transition:transform .3s}
+.glass-card:hover .city-temp{transform:scale(1.05)}
+.city-card .city-feels{font-size:11px;color:rgba(255,255,255,.35);text-align:right}
+
+/* ====== PM2.5 Badge ====== */
+.pm-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:8px;font-size:11px;font-weight:600}
+.pm-good{background:rgba(34,197,94,.2);color:#4ade80}
+.pm-moderate{background:rgba(250,204,21,.2);color:#facc15}
+.pm-unhealthy{background:rgba(249,115,22,.2);color:#f97316}
+.pm-very-unhealthy{background:rgba(239,68,68,.2);color:#ef4444}
+.pm-hazardous{background:rgba(153,27,27,.3);color:#b91c1c}
+
+/* ====== Ranking List ====== */
+.rank-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.04);margin-bottom:4px;transition:all .3s cubic-bezier(.16,1,.3,1);cursor:pointer;animation:rankIn .35s cubic-bezier(.16,1,.3,1) both}
+.rank-item:hover{background:rgba(255,255,255,.07);transform:translateX(3px);border-color:rgba(255,255,255,.1)}
+.rank-item:active{transform:scale(.97);transition:all .1s}
+.rank-item.top-1{background:rgba(255,215,0,.08);border-color:rgba(255,215,0,.15)}
+.rank-item.top-2{background:rgba(192,192,192,.06);border-color:rgba(192,192,192,.1)}
+.rank-item.top-3{background:rgba(205,127,50,.06);border-color:rgba(205,127,50,.1)}
+@keyframes rankIn{from{opacity:0;transform:translateX(-16px)}}
+.rank-pos{font-size:15px;font-weight:700;min-width:26px;text-align:center;transition:transform .3s}
+.rank-item:hover .rank-pos{transform:scale(1.15)}
+.rank-pos.gold{color:#ffd700}
+.rank-pos.silver{color:#c0c0c0}
+.rank-pos.bronze{color:#cd7f32}
+.rank-city{flex:1;min-width:0}
+.rank-city .rc-name{font-size:14px;font-weight:600;transition:color .2s}
+.rank-item:hover .rc-name{color:#fff}
+.rank-city .rc-detail{font-size:11px;color:rgba(255,255,255,.35);margin-top:1px}
+.rank-temp{font-size:22px;font-weight:200;letter-spacing:-1px;min-width:55px;text-align:right;transition:transform .3s}
+.rank-item:hover .rank-temp{transform:scale(1.08)}
+.fav-btn{font-size:18px;cursor:pointer;transition:all .25s cubic-bezier(.16,1,.3,1)}
+.fav-btn:hover{transform:scale(1.2)}
+.fav-btn:active{transform:scale(.8)}
+
+/* ====== Search ====== */
+.search-bar{position:relative;margin-bottom:12px;animation:slideDown .5s .1s cubic-bezier(.16,1,.3,1) both}
+.search-bar input{width:100%;padding:10px 14px 10px 36px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-size:14px;outline:none;backdrop-filter:blur(10px);transition:all .3s cubic-bezier(.16,1,.3,1)}
+.search-bar input:focus{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.08);box-shadow:0 0 0 3px rgba(255,255,255,.03)}
+.search-bar input::placeholder{color:rgba(255,255,255,.3)}
+.search-bar .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:14px;pointer-events:none}
+
+/* ====== Loading / Error ====== */
+.loading-box{text-align:center;padding:40px 20px}
+.loading-spin{width:32px;height:32px;border:3px solid rgba(255,255,255,.1);border-top-color:rgba(255,255,255,.5);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{text-align:center;padding:30px 20px;color:rgba(255,255,255,.5);animation:fadeSlideIn .3s}
+.retry-btn{padding:8px 20px;border-radius:20px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;font-size:13px;cursor:pointer;margin-top:10px;transition:all .25s cubic-bezier(.16,1,.3,1)}
+.retry-btn:hover{background:rgba(255,255,255,.15);transform:scale(1.03)}
+.retry-btn:active{transform:scale(.95)}
+
+/* ====== Full-Screen Weather Page ====== */
+.fullscreen-overlay{position:fixed;inset:0;z-index:200;background:#000;display:flex;flex-direction:column;overflow:hidden}
+.fullscreen-overlay.entering{animation:fsEnter .45s cubic-bezier(.16,1,.3,1)}
+.fullscreen-overlay.exiting{animation:fsExit .3s cubic-bezier(.5,0,.8,1) forwards}
+@keyframes fsEnter{from{opacity:0}to{opacity:1}}
+@keyframes fsExit{to{opacity:0;transform:scale(.95)}}
+
+.fs-canvas-wrap{flex:1;position:relative;overflow:hidden;min-height:0}
+.fs-canvas-wrap canvas{display:block;position:absolute;top:0;left:0}
+
+/* Back button on fullscreen */
+.fs-back{position:absolute;top:max(16px,env(safe-area-inset-top,16px));left:16px;z-index:10;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(20px);transition:all .25s cubic-bezier(.16,1,.3,1);animation:btnIn .5s .1s cubic-bezier(.16,1,.3,1) both}
+@keyframes btnIn{from{opacity:0;transform:translateX(-10px)}}
+.fs-back:hover{background:rgba(255,255,255,.15);transform:scale(1.05)}
+.fs-back:active{transform:scale(.9)}
+
+/* Weather info overlay on canvas */
+.fs-weather-info{position:absolute;bottom:0;left:0;right:0;padding:24px 20px 20px;background:linear-gradient(transparent,rgba(0,0,0,.6) 30%,rgba(0,0,0,.85));pointer-events:none;animation:infoUp .6s .2s cubic-bezier(.16,1,.3,1) both}
+@keyframes infoUp{from{opacity:0;transform:translateY(30px)}}
+.fs-city-name{font-size:20px;font-weight:500;color:rgba(255,255,255,.8);letter-spacing:0}
+.fs-weather-desc{font-size:14px;color:rgba(255,255,255,.5);margin-top:2px}
+.fs-temp-row{display:flex;align-items:flex-end;justify-content:space-between;margin-top:8px}
+.fs-temp{font-size:80px;font-weight:200;letter-spacing:-5px;line-height:1;transition:color .5s}
+.fs-hilo{font-size:16px;color:rgba(255,255,255,.5);padding-bottom:12px}
+
+/* Detailed weather panel */
+.fs-detail-panel{background:rgba(15,23,42,.98);backdrop-filter:blur(30px);padding:20px;animation:panelUp .5s .25s cubic-bezier(.16,1,.3,1) both;overflow-y:auto;max-height:42vh}
+@keyframes panelUp{from{opacity:0;transform:translateY(40px)}}
+.fs-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.fs-det-item{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px 10px;text-align:center;transition:all .25s}
+.fs-det-item:hover{background:rgba(255,255,255,.06)}
+.fs-det-icon{font-size:20px;margin-bottom:6px}
+.fs-det-val{font-size:17px;font-weight:600;transition:color .2s}
+.fs-det-lbl{font-size:10px;color:rgba(255,255,255,.35);margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+.fs-det-sub{font-size:10px;color:rgba(255,255,255,.25);margin-top:1px}
+@media(max-width:420px){.fs-detail-grid{grid-template-columns:repeat(2,1fr)}.fs-temp{font-size:60px}}
+
+/* ====== Update time ====== */
+.update-time{font-size:11px;color:rgba(255,255,255,.3);text-align:center;padding:10px 0}
+.footer{text-align:center;padding:16px;font-size:11px;color:rgba(255,255,255,.15)}
+.empty-state{text-align:center;padding:50px 20px;color:rgba(255,255,255,.3);animation:fadeSlideIn .4s}
+.empty-state p{font-size:14px;margin-top:8px}
+
+/* ====== Scrollbar ====== */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="header">
+    <h1>天气</h1>
+    <div class="header-actions">
+      <button class="header-btn" onclick="refreshData()" title="刷新">↻</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard')">收藏城市</button>
+    <button class="tab" onclick="switchTab('ranking')">温度排行</button>
+  </div>
+
+  <div id="viewContainer" class="view-container">
+    <div id="dashboardView">
+      <div class="search-bar"><span class="search-icon">🔍</span><input type="text" placeholder="搜索城市..." oninput="filterDashboard(this.value)" id="dashSearch"></div>
+      <div id="dashContent"><div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载天气数据...</p></div></div>
+      <div id="dashUpdateTime" class="update-time"></div>
+    </div>
+    <div id="rankingView" style="display:none">
+      <div class="search-bar"><span class="search-icon">🔍</span><input type="text" placeholder="搜索城市..." oninput="filterRanking(this.value)" id="rankSearch"></div>
+      <div id="rankContent"><div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载排行数据...</p></div></div>
+      <div id="rankUpdateTime" class="update-time"></div>
+    </div>
+  </div>
+
+  <div class="footer">数据来源: 和风天气 / Open-Meteo</div>
+</div>
+
+<!-- Full-Screen Weather Detail -->
+<div id="weatherFullscreen" class="fullscreen-overlay" style="display:none">
+  <div class="fs-canvas-wrap" id="fsCanvasWrap">
+    <canvas id="fsCanvas"></canvas>
+    <button class="fs-back" onclick="closeWeatherFullscreen()">←</button>
+    <div class="fs-weather-info">
+      <div class="fs-city-name" id="fsCityName"></div>
+      <div class="fs-weather-desc" id="fsWeatherDesc"></div>
+      <div class="fs-temp-row">
+        <div class="fs-temp" id="fsTemp"></div>
+        <div class="fs-hilo" id="fsHiLo"></div>
+      </div>
+    </div>
+  </div>
+  <div class="fs-detail-panel" id="fsDetailPanel"></div>
+</div>
+
+<script>
+// ====== 城市数据 ======
+const CITIES = [
+  {name:"北京",lat:39.91,lon:116.40},{name:"上海",lat:31.23,lon:121.47},{name:"广州",lat:23.13,lon:113.26},
+  {name:"深圳",lat:22.54,lon:114.06},{name:"成都",lat:30.57,lon:104.07},{name:"重庆",lat:29.56,lon:106.55},
+  {name:"杭州",lat:30.29,lon:120.15},{name:"武汉",lat:30.59,lon:114.31},{name:"西安",lat:34.26,lon:108.94},
+  {name:"南京",lat:32.06,lon:118.80},{name:"天津",lat:39.34,lon:117.36},{name:"沈阳",lat:41.81,lon:123.43},
+  {name:"哈尔滨",lat:45.80,lon:126.54},{name:"长春",lat:43.82,lon:125.32},{name:"济南",lat:36.65,lon:117.00},
+  {name:"石家庄",lat:38.04,lon:114.51},{name:"太原",lat:37.87,lon:112.55},{name:"郑州",lat:34.76,lon:113.65},
+  {name:"合肥",lat:31.82,lon:117.23},{name:"南昌",lat:28.68,lon:115.86},{name:"长沙",lat:28.23,lon:112.94},
+  {name:"福州",lat:26.07,lon:119.30},{name:"南宁",lat:22.82,lon:108.37},{name:"海口",lat:20.04,lon:110.34},
+  {name:"昆明",lat:25.04,lon:102.71},{name:"贵阳",lat:26.65,lon:106.63},{name:"兰州",lat:36.06,lon:103.83},
+  {name:"西宁",lat:36.62,lon:101.78},{name:"银川",lat:38.47,lon:106.28},{name:"拉萨",lat:29.65,lon:91.17},
+  {name:"乌鲁木齐",lat:43.83,lon:87.62},{name:"呼和浩特",lat:40.84,lon:111.75},{name:"台北",lat:25.03,lon:121.57},
+  {name:"香港",lat:22.32,lon:114.17},{name:"澳门",lat:22.20,lon:113.55},
+  {name:"苏州",lat:31.30,lon:120.59},{name:"无锡",lat:31.49,lon:120.31},{name:"常州",lat:31.77,lon:119.95},
+  {name:"南通",lat:31.98,lon:120.90},{name:"徐州",lat:34.20,lon:117.28},{name:"扬州",lat:32.39,lon:119.42},
+  {name:"镇江",lat:32.19,lon:119.43},{name:"盐城",lat:33.35,lon:120.16},{name:"泰州",lat:32.46,lon:119.92},
+  {name:"淮安",lat:33.55,lon:119.02},{name:"连云港",lat:34.60,lon:119.22},{name:"宿迁",lat:33.96,lon:118.28},
+  {name:"宁波",lat:29.87,lon:121.55},{name:"温州",lat:28.00,lon:120.70},{name:"嘉兴",lat:30.76,lon:120.76},
+  {name:"湖州",lat:30.87,lon:120.09},{name:"绍兴",lat:30.04,lon:120.58},{name:"金华",lat:29.08,lon:119.65},
+  {name:"衢州",lat:28.97,lon:118.87},{name:"舟山",lat:30.02,lon:122.11},{name:"台州",lat:28.66,lon:121.42},
+  {name:"丽水",lat:28.47,lon:119.92},{name:"佛山",lat:23.02,lon:113.11},{name:"东莞",lat:23.02,lon:113.75},
+  {name:"珠海",lat:22.27,lon:113.57},{name:"中山",lat:22.53,lon:113.38},{name:"惠州",lat:23.11,lon:114.42},
+  {name:"汕头",lat:23.35,lon:116.68},{name:"江门",lat:22.58,lon:113.08},{name:"湛江",lat:21.27,lon:110.36},
+  {name:"茂名",lat:21.66,lon:110.92},{name:"肇庆",lat:23.05,lon:112.46},{name:"梅州",lat:24.29,lon:116.12},
+  {name:"汕尾",lat:22.79,lon:115.38},{name:"河源",lat:23.75,lon:114.70},{name:"阳江",lat:21.86,lon:111.98},
+  {name:"清远",lat:23.68,lon:113.06},{name:"韶关",lat:24.80,lon:113.59},{name:"潮州",lat:23.66,lon:116.63},
+  {name:"揭阳",lat:23.55,lon:116.37},{name:"云浮",lat:22.93,lon:112.04},{name:"三亚",lat:18.25,lon:109.50},
+  {name:"儋州",lat:19.52,lon:109.58},{name:"三沙",lat:16.83,lon:112.33},{name:"桂林",lat:25.27,lon:110.29},
+  {name:"柳州",lat:24.31,lon:109.41},{name:"北海",lat:21.47,lon:109.12},{name:"梧州",lat:23.48,lon:111.32},
+  {name:"玉林",lat:22.63,lon:110.15},{name:"百色",lat:23.90,lon:106.62},{name:"河池",lat:24.69,lon:108.06},
+  {name:"钦州",lat:21.95,lon:108.62},{name:"贵港",lat:23.11,lon:109.60},{name:"防城港",lat:21.69,lon:108.35},
+  {name:"贺州",lat:24.40,lon:111.55},{name:"来宾",lat:23.73,lon:109.23},{name:"崇左",lat:22.40,lon:107.37},
+  {name:"厦门",lat:24.48,lon:118.09},{name:"泉州",lat:24.91,lon:118.59},{name:"漳州",lat:24.51,lon:117.65},
+  {name:"龙岩",lat:25.08,lon:117.02},{name:"三明",lat:26.26,lon:117.64},{name:"南平",lat:26.64,lon:118.18},
+  {name:"莆田",lat:25.45,lon:119.01},{name:"宁德",lat:26.66,lon:119.55},{name:"大连",lat:38.92,lon:121.63},
+  {name:"鞍山",lat:41.11,lon:122.99},{name:"抚顺",lat:41.88,lon:123.96},{name:"本溪",lat:41.29,lon:123.77},
+  {name:"丹东",lat:40.00,lon:124.35},{name:"锦州",lat:41.10,lon:121.13},{name:"营口",lat:40.67,lon:122.23},
+  {name:"阜新",lat:42.01,lon:121.67},{name:"辽阳",lat:41.27,lon:123.17},{name:"盘锦",lat:41.12,lon:122.07},
+  {name:"铁岭",lat:42.29,lon:123.84},{name:"朝阳",lat:41.58,lon:120.45},{name:"葫芦岛",lat:40.71,lon:120.84},
+  {name:"青岛",lat:36.07,lon:120.38},{name:"烟台",lat:37.54,lon:121.39},{name:"潍坊",lat:36.71,lon:119.16},
+  {name:"威海",lat:37.51,lon:122.12},{name:"临沂",lat:35.10,lon:118.35},{name:"淄博",lat:36.81,lon:118.05},
+  {name:"济宁",lat:35.41,lon:116.59},{name:"泰安",lat:36.19,lon:117.09},{name:"聊城",lat:36.46,lon:115.99},
+  {name:"德州",lat:37.43,lon:116.36},{name:"滨州",lat:37.38,lon:117.97},{name:"东营",lat:37.43,lon:118.67},
+  {name:"菏泽",lat:35.23,lon:115.48},{name:"日照",lat:35.42,lon:119.53},{name:"枣庄",lat:34.81,lon:117.32},
+  {name:"芜湖",lat:31.35,lon:118.43},{name:"蚌埠",lat:32.94,lon:117.36},{name:"淮南",lat:32.63,lon:116.98},
+  {name:"马鞍山",lat:31.67,lon:118.51},{name:"淮北",lat:33.96,lon:116.79},{name:"铜陵",lat:30.93,lon:117.81},
+  {name:"安庆",lat:30.53,lon:117.05},{name:"黄山",lat:29.71,lon:118.34},{name:"滁州",lat:32.30,lon:118.32},
+  {name:"阜阳",lat:32.89,lon:115.82},{name:"宿州",lat:33.64,lon:116.97},{name:"六安",lat:31.74,lon:116.51},
+  {name:"亳州",lat:33.84,lon:115.78},{name:"池州",lat:30.66,lon:117.49},{name:"宣城",lat:30.94,lon:118.76},
+  {name:"九江",lat:29.71,lon:116.00},{name:"景德镇",lat:29.27,lon:117.20},{name:"萍乡",lat:27.63,lon:113.85},
+  {name:"新余",lat:27.82,lon:114.93},{name:"鹰潭",lat:28.23,lon:117.04},{name:"赣州",lat:25.83,lon:114.93},
+  {name:"吉安",lat:27.11,lon:114.99},{name:"宜春",lat:27.82,lon:114.38},{name:"抚州",lat:27.95,lon:116.36},
+  {name:"上饶",lat:28.45,lon:117.97},{name:"襄阳",lat:32.01,lon:112.12},{name:"宜昌",lat:30.69,lon:111.29},
+  {name:"荆州",lat:30.33,lon:112.24},{name:"黄冈",lat:30.45,lon:114.88},{name:"十堰",lat:32.65,lon:110.80},
+  {name:"孝感",lat:30.93,lon:113.92},{name:"荆门",lat:31.04,lon:112.20},{name:"鄂州",lat:30.39,lon:114.89},
+  {name:"黄石",lat:30.20,lon:115.08},{name:"咸宁",lat:29.83,lon:114.33},{name:"随州",lat:31.69,lon:113.38},
+  {name:"恩施",lat:30.28,lon:109.49},{name:"株洲",lat:27.83,lon:113.13},{name:"湘潭",lat:27.85,lon:112.94},
+  {name:"衡阳",lat:26.89,lon:112.57},{name:"邵阳",lat:27.24,lon:111.47},{name:"岳阳",lat:29.37,lon:113.09},
+  {name:"常德",lat:29.03,lon:111.70},{name:"张家界",lat:29.12,lon:110.48},{name:"益阳",lat:28.58,lon:112.33},
+  {name:"郴州",lat:25.77,lon:113.03},{name:"永州",lat:26.42,lon:111.61},{name:"怀化",lat:27.55,lon:109.96},
+  {name:"娄底",lat:27.70,lon:111.99},{name:"湘西",lat:28.32,lon:109.74},
+  {name:"洛阳",lat:34.62,lon:112.45},{name:"开封",lat:34.80,lon:114.31},{name:"南阳",lat:33.00,lon:112.53},
+  {name:"许昌",lat:34.02,lon:113.82},{name:"新乡",lat:35.30,lon:113.87},{name:"安阳",lat:36.10,lon:114.39},
+  {name:"平顶山",lat:33.74,lon:113.30},{name:"信阳",lat:32.13,lon:114.07},{name:"焦作",lat:35.22,lon:113.24},
+  {name:"商丘",lat:34.41,lon:115.66},{name:"周口",lat:33.62,lon:114.66},{name:"驻马店",lat:32.98,lon:114.03},
+  {name:"漯河",lat:33.58,lon:114.02},{name:"濮阳",lat:35.76,lon:115.03},{name:"鹤壁",lat:35.75,lon:114.30},
+  {name:"三门峡",lat:34.77,lon:111.20},{name:"唐山",lat:39.63,lon:118.18},{name:"邯郸",lat:36.61,lon:114.49},
+  {name:"保定",lat:38.87,lon:115.47},{name:"沧州",lat:38.30,lon:116.84},{name:"邢台",lat:37.07,lon:114.50},
+  {name:"廊坊",lat:39.52,lon:116.70},{name:"承德",lat:40.95,lon:117.96},{name:"秦皇岛",lat:39.94,lon:119.60},
+  {name:"衡水",lat:37.74,lon:115.67},{name:"张家口",lat:40.77,lon:114.88},
+  {name:"大同",lat:40.09,lon:113.30},{name:"阳泉",lat:37.86,lon:113.58},{name:"长治",lat:36.20,lon:113.12},
+  {name:"晋城",lat:35.49,lon:112.85},{name:"朔州",lat:39.33,lon:112.43},{name:"晋中",lat:37.69,lon:112.75},
+  {name:"运城",lat:35.03,lon:111.00},{name:"忻州",lat:38.42,lon:112.73},{name:"临汾",lat:36.09,lon:111.52},
+  {name:"吕梁",lat:37.52,lon:111.14},{name:"包头",lat:40.66,lon:109.84},{name:"乌海",lat:39.67,lon:106.82},
+  {name:"赤峰",lat:42.28,lon:118.96},{name:"通辽",lat:43.62,lon:122.27},{name:"鄂尔多斯",lat:39.61,lon:109.78},
+  {name:"呼伦贝尔",lat:49.21,lon:119.77},{name:"巴彦淖尔",lat:40.74,lon:107.39},{name:"乌兰察布",lat:40.99,lon:113.13},
+  {name:"吉林市",lat:43.84,lon:126.55},{name:"四平",lat:43.17,lon:124.35},{name:"辽源",lat:42.89,lon:125.14},
+  {name:"通化",lat:41.73,lon:125.94},{name:"白山",lat:41.94,lon:126.42},{name:"松原",lat:45.14,lon:124.83},
+  {name:"白城",lat:45.62,lon:122.84},{name:"延边",lat:42.91,lon:129.51},
+  {name:"齐齐哈尔",lat:47.35,lon:123.92},{name:"鸡西",lat:45.30,lon:130.98},{name:"鹤岗",lat:47.33,lon:130.30},
+  {name:"双鸭山",lat:46.64,lon:131.16},{name:"大庆",lat:46.59,lon:125.03},{name:"伊春",lat:47.73,lon:128.90},
+  {name:"佳木斯",lat:46.81,lon:130.33},{name:"七台河",lat:45.77,lon:131.00},{name:"牡丹江",lat:44.58,lon:129.61},
+  {name:"黑河",lat:50.25,lon:127.50},{name:"绥化",lat:46.64,lon:126.97},{name:"大兴安岭",lat:52.34,lon:124.71},
+  {name:"绵阳",lat:31.47,lon:104.68},{name:"自贡",lat:29.34,lon:104.78},{name:"攀枝花",lat:26.58,lon:101.72},
+  {name:"泸州",lat:28.87,lon:105.44},{name:"德阳",lat:31.13,lon:104.40},{name:"广元",lat:32.44,lon:105.82},
+  {name:"遂宁",lat:30.53,lon:105.59},{name:"内江",lat:29.58,lon:105.06},{name:"乐山",lat:29.59,lon:103.76},
+  {name:"南充",lat:30.80,lon:106.08},{name:"眉山",lat:30.08,lon:103.85},{name:"宜宾",lat:28.75,lon:104.64},
+  {name:"广安",lat:30.47,lon:106.63},{name:"达州",lat:31.21,lon:107.50},{name:"雅安",lat:29.98,lon:103.01},
+  {name:"巴中",lat:31.86,lon:106.75},{name:"资阳",lat:30.13,lon:104.63},{name:"阿坝",lat:31.90,lon:102.22},
+  {name:"甘孜",lat:30.05,lon:101.96},{name:"凉山",lat:27.90,lon:102.27},
+  {name:"遵义",lat:27.72,lon:106.93},{name:"六盘水",lat:26.59,lon:104.83},{name:"安顺",lat:26.25,lon:105.93},
+  {name:"毕节",lat:27.30,lon:105.29},{name:"铜仁",lat:27.72,lon:109.19},{name:"黔西南",lat:25.09,lon:104.90},
+  {name:"黔东南",lat:26.58,lon:107.98},{name:"黔南",lat:26.26,lon:107.52},
+  {name:"曲靖",lat:25.50,lon:103.80},{name:"玉溪",lat:24.35,lon:102.55},{name:"保山",lat:25.12,lon:99.17},
+  {name:"昭通",lat:27.34,lon:103.72},{name:"丽江",lat:26.86,lon:100.23},{name:"普洱",lat:22.78,lon:100.97},
+  {name:"临沧",lat:23.88,lon:100.09},{name:"楚雄",lat:25.04,lon:101.55},{name:"红河",lat:23.37,lon:103.38},
+  {name:"文山",lat:23.37,lon:104.25},{name:"西双版纳",lat:22.01,lon:100.80},{name:"大理",lat:25.61,lon:100.27},
+  {name:"德宏",lat:24.43,lon:98.58},{name:"怒江",lat:25.85,lon:98.86},{name:"迪庆",lat:27.82,lon:99.70},
+  {name:"咸阳",lat:34.33,lon:108.71},{name:"宝鸡",lat:34.36,lon:107.24},{name:"渭南",lat:34.50,lon:109.51},
+  {name:"延安",lat:36.59,lon:109.49},{name:"汉中",lat:33.07,lon:107.03},{name:"榆林",lat:38.29,lon:109.74},
+  {name:"安康",lat:32.69,lon:109.03},{name:"商洛",lat:33.87,lon:109.93},{name:"天水",lat:34.58,lon:105.72},
+  {name:"嘉峪关",lat:39.77,lon:98.29},{name:"金昌",lat:38.52,lon:102.19},{name:"白银",lat:36.54,lon:104.14},
+  {name:"武威",lat:37.93,lon:102.64},{name:"张掖",lat:38.93,lon:100.45},{name:"平凉",lat:35.54,lon:106.67},
+  {name:"酒泉",lat:39.74,lon:98.52},{name:"庆阳",lat:35.71,lon:107.64},{name:"定西",lat:35.58,lon:104.63},
+  {name:"陇南",lat:33.40,lon:104.92},{name:"临夏",lat:35.60,lon:103.21},{name:"甘南",lat:34.98,lon:102.91},
+  {name:"海东",lat:36.50,lon:102.10},{name:"海北",lat:36.95,lon:100.90},{name:"黄南",lat:35.52,lon:102.02},
+  {name:"海南州",lat:36.29,lon:100.62},{name:"果洛",lat:34.47,lon:100.25},{name:"玉树",lat:33.01,lon:97.01},
+  {name:"海西",lat:37.38,lon:97.37},{name:"石嘴山",lat:38.98,lon:106.38},{name:"吴忠",lat:37.99,lon:106.20},
+  {name:"固原",lat:36.02,lon:106.24},{name:"中卫",lat:37.51,lon:105.19},
+  {name:"克拉玛依",lat:45.58,lon:84.89},{name:"吐鲁番",lat:42.95,lon:89.18},{name:"哈密",lat:42.84,lon:93.51},
+  {name:"昌吉",lat:44.01,lon:87.27},{name:"博尔塔拉",lat:44.91,lon:82.07},{name:"巴音郭楞",lat:41.76,lon:86.15},
+  {name:"阿克苏",lat:41.17,lon:80.26},{name:"克孜勒苏",lat:39.71,lon:76.17},{name:"喀什",lat:39.47,lon:75.99},
+  {name:"和田",lat:37.11,lon:79.91},{name:"伊犁",lat:43.92,lon:81.32},{name:"塔城",lat:46.75,lon:82.98},
+  {name:"阿勒泰",lat:47.85,lon:88.14},{name:"日喀则",lat:29.27,lon:88.88},{name:"昌都",lat:31.14,lon:97.18},
+  {name:"林芝",lat:29.65,lon:94.36},{name:"山南",lat:29.24,lon:91.77},{name:"那曲",lat:31.48,lon:92.06},
+  {name:"阿里",lat:32.50,lon:80.10},
+  {name:"东京",lat:35.68,lon:139.77},{name:"首尔",lat:37.57,lon:126.98},{name:"新加坡",lat:1.35,lon:103.82},
+  {name:"曼谷",lat:13.75,lon:100.50},{name:"吉隆坡",lat:3.14,lon:101.69},{name:"雅加达",lat:-6.21,lon:106.85},
+  {name:"马尼拉",lat:14.60,lon:120.98},{name:"胡志明市",lat:10.82,lon:106.63},{name:"河内",lat:21.03,lon:105.85},
+  {name:"仰光",lat:16.87,lon:96.20},{name:"新德里",lat:28.61,lon:77.23},{name:"孟买",lat:19.08,lon:72.88},
+  {name:"迪拜",lat:25.20,lon:55.27},{name:"多哈",lat:25.29,lon:51.53},{name:"利雅得",lat:24.71,lon:46.68},
+  {name:"伊斯坦布尔",lat:41.01,lon:28.98},{name:"安卡拉",lat:39.93,lon:32.86},{name:"德黑兰",lat:35.69,lon:51.42},
+  {name:"巴格达",lat:33.32,lon:44.42},{name:"耶路撒冷",lat:31.77,lon:35.21},{name:"伦敦",lat:51.51,lon:-0.13},
+  {name:"巴黎",lat:48.86,lon:2.35},{name:"柏林",lat:52.52,lon:13.41},{name:"罗马",lat:41.90,lon:12.50},
+  {name:"马德里",lat:40.42,lon:-3.70},{name:"莫斯科",lat:55.76,lon:37.62},{name:"圣彼得堡",lat:59.93,lon:30.34},
+  {name:"阿姆斯特丹",lat:52.37,lon:4.90},{name:"布鲁塞尔",lat:50.85,lon:4.35},{name:"维也纳",lat:48.21,lon:16.37},
+  {name:"苏黎世",lat:47.38,lon:8.54},{name:"斯德哥尔摩",lat:59.33,lon:18.07},{name:"奥斯陆",lat:59.91,lon:10.75},
+  {name:"哥本哈根",lat:55.68,lon:12.57},{name:"赫尔辛基",lat:60.17,lon:24.94},{name:"华沙",lat:52.23,lon:21.01},
+  {name:"布拉格",lat:50.09,lon:14.42},{name:"布达佩斯",lat:47.50,lon:19.04},{name:"雅典",lat:37.98,lon:23.73},
+  {name:"里斯本",lat:38.72,lon:-9.14},{name:"都柏林",lat:53.35,lon:-6.26},{name:"雷克雅未克",lat:64.15,lon:-21.94},
+  {name:"纽约",lat:40.71,lon:-74.01},{name:"洛杉矶",lat:34.05,lon:-118.24},{name:"芝加哥",lat:41.88,lon:-87.63},
+  {name:"休斯顿",lat:29.76,lon:-95.37},{name:"旧金山",lat:37.77,lon:-122.42},{name:"西雅图",lat:47.61,lon:-122.33},
+  {name:"迈阿密",lat:25.76,lon:-80.19},{name:"波士顿",lat:42.36,lon:-71.06},{name:"华盛顿",lat:38.91,lon:-77.04},
+  {name:"多伦多",lat:43.65,lon:-79.38},{name:"温哥华",lat:49.28,lon:-123.12},{name:"蒙特利尔",lat:45.50,lon:-73.57},
+  {name:"墨西哥城",lat:19.43,lon:-99.13},{name:"圣保罗",lat:-23.55,lon:-46.63},{name:"里约热内卢",lat:-22.91,lon:-43.20},
+  {name:"布宜诺斯艾利斯",lat:-34.60,lon:-58.38},{name:"利马",lat:-12.05,lon:-77.04},{name:"圣地亚哥",lat:-33.45,lon:-70.67},
+  {name:"波哥大",lat:4.71,lon:-74.07},{name:"开罗",lat:30.04,lon:31.24},{name:"开普敦",lat:-33.93,lon:18.42},
+  {name:"约翰内斯堡",lat:-26.20,lon:28.05},{name:"内罗毕",lat:-1.29,lon:36.82},{name:"拉各斯",lat:6.45,lon:3.40},
+  {name:"悉尼",lat:-33.87,lon:151.21},{name:"墨尔本",lat:-37.81,lon:144.96},{name:"布里斯班",lat:-27.47,lon:153.03},
+  {name:"珀斯",lat:-31.95,lon:115.86},{name:"奥克兰",lat:-36.85,lon:174.76}
+];
+
+const WEATHER_MAP = {
+  0:{icon:'☀️',text:'晴'},1:{icon:'🌤️',text:'少云'},2:{icon:'⛅',text:'多云'},3:{icon:'☁️',text:'阴'},
+  45:{icon:'🌫️',text:'雾'},48:{icon:'🌫️',text:'雾凇'},51:{icon:'🌦️',text:'小雨'},53:{icon:'🌦️',text:'小雨'},
+  55:{icon:'🌧️',text:'中雨'},61:{icon:'🌧️',text:'小雨'},63:{icon:'🌧️',text:'中雨'},65:{icon:'🌧️',text:'大雨'},
+  71:{icon:'❄️',text:'小雪'},73:{icon:'❄️',text:'中雪'},75:{icon:'❄️',text:'大雪'},77:{icon:'🌨️',text:'冰粒'},
+  80:{icon:'🌦️',text:'阵雨'},81:{icon:'🌧️',text:'大雨'},82:{icon:'⛈️',text:'暴风雨'},
+  85:{icon:'🌨️',text:'阵雪'},86:{icon:'🌨️',text:'阵雪'},
+  95:{icon:'⛈️',text:'雷暴'},96:{icon:'⛈️',text:'雷暴+冰雹'},99:{icon:'⛈️',text:'强雷暴+冰雹'}
+};
+
+// ====== 全局状态 ======
+let allCityData = [];
+let favorites = JSON.parse(localStorage.getItem('wx_fav') || '[]');
+let rankingLoaded = false;
+let currentTab = 'dashboard';
+let fsAnim = null;
+let fsCity = null;
+
+function getCache() {
+  try {
+    const raw = localStorage.getItem('wx_cache');
+    if (!raw) return null;
+    const { data, time } = JSON.parse(raw);
+    if (Date.now() - time > 600000) return null;
+    return data;
+  } catch { return null; }
+}
+function setCache(data) {
+  try { localStorage.setItem('wx_cache', JSON.stringify({ data, time: Date.now() })); } catch {}
+}
+
+function formatTime(d) {
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+}
+function tempColor(t) {
+  if (t >= 35) return '#ff6b6b';
+  if (t >= 28) return '#ff9f43';
+  if (t >= 20) return '#feca57';
+  if (t >= 10) return '#a0d468';
+  if (t >= 0) return '#48dbfb';
+  return '#c8d6e5';
+}
+function pm2Color(v) {
+  if (v === null || v === undefined) return { cls: '', label: '--' };
+  if (v <= 35) return { cls: 'pm-good', label: '优 ' + v };
+  if (v <= 75) return { cls: 'pm-moderate', label: '良 ' + v };
+  if (v <= 150) return { cls: 'pm-unhealthy', label: '轻度 ' + v };
+  if (v <= 250) return { cls: 'pm-very-unhealthy', label: '重度 ' + v };
+  return { cls: 'pm-hazardous', label: '严重 ' + v };
+}
+
+function windDirLabel(deg) {
+  if (deg == null) return '--';
+  const dirs = ['北','东北','东','东南','南','西南','西','西北'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+// ====== 和风天气 API ======
+const QW_KEY = '47ed14630e30443190be309a19e98948';
+
+function qwIconToWmo(icon) {
+  const i = parseInt(icon);
+  if ([100, 150].includes(i)) return 0;
+  if ([101, 102, 151, 152].includes(i)) return 1;
+  if ([103, 153].includes(i)) return 2;
+  if ([104, 154].includes(i)) return 3;
+  if ([500, 501, 502, 503, 504, 507, 508, 509, 510, 511, 512, 513, 514, 515].includes(i)) return 45;
+  if ([300, 301, 302, 303].includes(i)) return 80;
+  if ([304].includes(i)) return 81;
+  if ([305, 306].includes(i)) return 95;
+  if ([307, 309].includes(i)) return 61;
+  if ([308, 310].includes(i)) return 63;
+  if ([311, 312].includes(i)) return 65;
+  if ([313, 314, 315, 316, 317, 318].includes(i)) return 82;
+  if ([350, 351].includes(i)) return 77;
+  if ([399].includes(i)) return 63;
+  if ([400, 401, 407].includes(i)) return 71;
+  if ([402, 403, 408, 409].includes(i)) return 73;
+  if ([404, 405, 406, 410].includes(i)) return 75;
+  if ([456, 457].includes(i)) return 85;
+  if ([499].includes(i)) return 73;
+  return 0;
+}
+
+function parseQwWindDir(dir) {
+  const map = { '东北': 45, '东南': 135, '西南': 225, '西北': 315, '北': 0, '东': 90, '南': 180, '西': 270 };
+  for (const [k, v] of Object.entries(map)) { if (dir.startsWith(k)) return v; }
+  return 0;
+}
+
+async function fetchWithRetry(url, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      const resp = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      return resp;
+    } catch (e) {
+      if (i === retries) throw e;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+}
+
+async function fetchCityQWeather(city) {
+  const [wResp, aResp] = await Promise.all([
+    fetchWithRetry(`https://n22k5pxg2t.re.qweatherapi.com/v7/weather/now?location=${city.lon},${city.lat}&key=${QW_KEY}`),
+    fetchWithRetry(`https://n22k5pxg2t.re.qweatherapi.com/v7/air/now?location=${city.lon},${city.lat}&key=${QW_KEY}`).catch(() => null)
+  ]);
+  const w = (await wResp.json()).now;
+  const a = aResp ? (await aResp.json()).now : null;
+  return {
+    name: city.name,
+    temp: parseInt(w.temp),
+    feelsLike: parseInt(w.feelsLike) || null,
+    humidity: parseInt(w.humidity),
+    windSpeed: parseInt(w.windSpeed),
+    windDirection: parseQwWindDir(w.windDir),
+    pressure: parseInt(w.pressure),
+    cloudCover: parseInt(w.cloud) || null,
+    precipitation: parseFloat(w.precip),
+    weatherCode: qwIconToWmo(w.icon),
+    pm25: a ? parseFloat(a.pm2p5) : null,
+    pm10: a ? parseFloat(a.pm10) : null,
+    aqi: a ? parseInt(a.category) : null
+  };
+}
+
+async function fetchCitiesQWeather(cityList) {
+  const results = [];
+  for (const city of cityList) {
+    try { results.push(await fetchCityQWeather(city)); }
+    catch (e) { console.warn(`QWeather failed for ${city.name}`); }
+  }
+  return results;
+}
+
+async function fetchCitiesOpenMeteo(cityList) {
+  const lats = cityList.map(c => c.lat).join(',');
+  const lons = cityList.map(c => c.lon).join(',');
+  const [wResp, aResp] = await Promise.all([
+    fetchWithRetry(`https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover&timezone=Asia/Shanghai`),
+    fetchWithRetry(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5,pm10,european_aqi`).catch(() => null)
+  ]);
+  const wData = await wResp.json();
+  const aData = aResp ? await aResp.json() : null;
+  return cityList.map((city, i) => {
+    const w = wData[i].current;
+    const a = aData ? aData[i].current : {};
+    return {
+      name: city.name, temp: Math.round(w.temperature_2m),
+      feelsLike: Math.round(w.apparent_temperature), humidity: w.relative_humidity_2m,
+      windSpeed: w.wind_speed_10m, windDirection: w.wind_direction_10m,
+      pressure: Math.round(w.pressure_msl), cloudCover: w.cloud_cover,
+      precipitation: w.precipitation, weatherCode: w.weather_code,
+      pm25: a.pm2_5 ?? null, pm10: a.pm10 ?? null, aqi: a.european_aqi ?? null
+    };
+  });
+}
+
+// ====== 数据加载 ======
+async function loadDashboardData() {
+  const toFetch = CITIES.filter(c => favorites.includes(c.name));
+  if (toFetch.length === 0) return;
+  try {
+    const results = await fetchCitiesQWeather(toFetch);
+    const map = new Map(results.map(r => [r.name, r]));
+    if (allCityData.length > 0) {
+      allCityData = allCityData.map(c => map.get(c.name) || c);
+    } else {
+      allCityData = results;
+    }
+    setCache(allCityData);
+    renderDashboard();
+  } catch (err) { throw err; }
+}
+
+async function loadRankingData() {
+  const rankContent = document.getElementById('rankContent');
+  const cached = getCache();
+  if (cached && cached.length > 10) {
+    allCityData = cached;
+    rankingLoaded = true;
+    renderRanking();
+    document.getElementById('rankUpdateTime').textContent = '(缓存) 更新于 ' + formatTime(new Date());
+    return;
+  }
+  rankContent.innerHTML = '<div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">正在加载排行数据...</p></div>';
+
+  try {
+    // Sort: Chinese cities first, then global — important cities appear faster
+    const sorted = [...CITIES].sort((a, b) => {
+      const aCN = a.lon > 70 && a.lon < 140 && a.lat > 15 && a.lat < 55;
+      const bCN = b.lon > 70 && b.lon < 140 && b.lat > 15 && b.lat < 55;
+      if (aCN && !bCN) return -1;
+      if (!aCN && bCN) return 1;
+      return 0;
+    });
+
+    const results = [];
+    const CONCURRENCY = 15;
+    const total = sorted.length;
+    let loaded = 0;
+
+    for (let i = 0; i < total; i += CONCURRENCY) {
+      const batch = sorted.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.allSettled(
+        batch.map(c => fetchCityQWeather(c).catch(() => null))
+      );
+      for (const r of batchResults) {
+        if (r.status === 'fulfilled' && r.value) results.push(r.value);
+      }
+      loaded += batch.length;
+
+      // Stream render: show results as they come in
+      allCityData = [...results];
+      if (results.length > 0) {
+        rankingLoaded = true;
+        renderRanking();
+        document.getElementById('rankUpdateTime').textContent =
+          `加载中 ${Math.round(loaded / total * 100)}%（${loaded}/${total}）`;
+      }
+
+      if (i + CONCURRENCY < total) await new Promise(r => setTimeout(r, 120));
+    }
+
+    if (results.length > 0) {
+      allCityData = results;
+      setCache(results);
+      rankingLoaded = true;
+      renderRanking();
+      document.getElementById('rankUpdateTime').textContent = '更新于 ' + formatTime(new Date());
+    } else {
+      throw new Error('所有请求均失败');
+    }
+  } catch (err) {
+    const msg = err.message.includes('429') || err.message.includes('频繁') ? '请求过于频繁，请1小时后再试' : err.message;
+    rankContent.innerHTML = `<div class="error-box"><p>获取排行数据失败：${msg}</p><button class="retry-btn" onclick="loadRankingData()">重新获取</button></div>`;
+  }
+}
+
+async function loadAllData() {
+  try {
+    await loadDashboardData();
+    if (rankingLoaded) { loadRankingData().catch(() => {}); }
+    document.getElementById('rankUpdateTime').textContent = '更新于 ' + formatTime(new Date());
+  } catch (e) {
+    document.getElementById('dashContent').innerHTML = `<div class="error-box"><p>加载失败：${e.message}</p><button class="retry-btn" onclick="refreshData()">重试</button></div>`;
+  }
+}
+
+// ====== 渲染 ======
+function renderDashboard(filter = '') {
+  const container = document.getElementById('dashContent');
+  let data = allCityData.length > 0 ? allCityData : [];
+  if (data.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>请先加载排行数据，然后点击❤️收藏城市</p><p style="font-size:12px;margin-top:8px">或者点击"温度排行"标签查看所有城市</p></div>';
+    return;
+  }
+  data = data.filter(c => favorites.includes(c.name));
+  if (filter) { const q = filter.toLowerCase(); data = data.filter(c => c.name.includes(q)); }
+  data.sort((a, b) => b.temp - a.temp);
+  if (data.length === 0 && favorites.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>前往"温度排行"标签，点击城市旁的 ❤️ 收藏</p></div>';
+    return;
+  }
+  if (data.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>未找到匹配城市</p></div>';
+    return;
+  }
+  const sorted = [...allCityData].filter(c => favorites.includes(c.name)).sort((a, b) => b.temp - a.temp);
+  const rankMap = new Map(sorted.map((c, i) => [c.name, i + 1]));
+  container.innerHTML = data.map((c, idx) => {
+    const w = WEATHER_MAP[c.weatherCode] || { icon: '🌡️', text: '未知' };
+    const pm = pm2Color(c.pm25);
+    const tCol = tempColor(c.temp);
+    const rank = rankMap.get(c.name);
+    return `
+    <div class="glass-card" style="animation-delay:${idx * 0.04}s" onclick="openWeatherFullscreen('${c.name}')">
+      <div class="city-card">
+        <div class="rank-num">${rank || '-'}</div>
+        <div class="city-info">
+          <div class="city-name">${c.name}</div>
+          <div class="city-weather">${w.icon} ${w.text}</div>
+          <div class="city-indicators">
+            <span>💧 ${c.humidity ?? '--'}%</span>
+            <span>🌬 ${c.windSpeed ?? '--'}km/h</span>
+            ${c.pm25 != null ? `<span class="pm-badge ${pm.cls}">PM2.5 ${pm.label}</span>` : ''}
+          </div>
+        </div>
+        <div>
+          <div class="city-temp" style="color:${tCol}">${c.temp}°</div>
+          <div class="city-feels">体感 ${c.feelsLike ?? '--'}°</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('dashUpdateTime').textContent = '更新于 ' + formatTime(new Date());
+}
+
+function renderRanking(filter = '') {
+  const container = document.getElementById('rankContent');
+  if (allCityData.length === 0) {
+    container.innerHTML = '<div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载中...</p></div>';
+    return;
+  }
+  let data = [...allCityData];
+  if (filter) { const q = filter.toLowerCase(); data = data.filter(c => c.name.includes(q)); }
+  data.sort((a, b) => b.temp - a.temp);
+  container.innerHTML = '<div class="rank-list">' + data.map((c, i) => {
+    const w = WEATHER_MAP[c.weatherCode] || { icon: '🌡️', text: '未知' };
+    const tCol = tempColor(c.temp);
+    const pm = pm2Color(c.pm25);
+    const isFav = favorites.includes(c.name);
+    let posClass = '';
+    if (i === 0) posClass = 'gold';
+    else if (i === 1) posClass = 'silver';
+    else if (i === 2) posClass = 'bronze';
+    const topClass = i < 3 ? ` top-${i+1}` : '';
+    return `
+    <div class="rank-item${topClass}" style="animation-delay:${Math.min(i,30) * 0.02}s" onclick="openWeatherFullscreen('${c.name}')">
+      <div class="rank-pos ${posClass}">${i + 1}</div>
+      <div class="rank-city">
+        <div class="rc-name">${c.name}</div>
+        <div class="rc-detail">${w.icon} ${w.text} · ${c.humidity ?? '--'}% · ${c.windSpeed ?? '--'}km/h${c.pm25 != null ? ' · <span class="pm-badge '+pm.cls+'">PM2.5 '+pm.label+'</span>' : ''}</div>
+      </div>
+      <div class="rank-temp" style="color:${tCol}">${c.temp}°</div>
+      <div class="fav-btn" style="color:${isFav?'#f59e0b':'rgba(255,255,255,.2)'}" onclick="event.stopPropagation();toggleFav('${c.name}')">${isFav ? '❤️' : '🤍'}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function toggleFav(name) {
+  if (favorites.includes(name)) {
+    favorites = favorites.filter(f => f !== name);
+  } else {
+    favorites.push(name);
+  }
+  localStorage.setItem('wx_fav', JSON.stringify(favorites));
+  renderRanking(document.getElementById('rankSearch')?.value || '');
+  if (currentTab === 'dashboard') renderDashboard(document.getElementById('dashSearch')?.value || '');
+}
+
+function filterDashboard(v) { renderDashboard(v); }
+function filterRanking(v) { renderRanking(v); }
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (i === 0 && tab === 'dashboard') || (i === 1 && tab === 'ranking')));
+  const dv = document.getElementById('dashboardView');
+  const rv = document.getElementById('rankingView');
+  const vc = document.getElementById('viewContainer');
+  vc.style.animation = 'none';
+  vc.offsetHeight;
+  vc.style.animation = 'fadeSlideIn .35s cubic-bezier(.16,1,.3,1)';
+  if (tab === 'dashboard') { dv.style.display = ''; rv.style.display = 'none'; }
+  else { dv.style.display = 'none'; rv.style.display = ''; }
+  if (tab === 'ranking' && !rankingLoaded) loadRankingData();
+}
+
+function refreshData() {
+  allCityData = [];
+  rankingLoaded = false;
+  localStorage.removeItem('wx_cache');
+  document.getElementById('dashContent').innerHTML = '<div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载天气数据...</p></div>';
+  document.getElementById('rankContent').innerHTML = '<div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载排行数据...</p></div>';
+  loadAllData();
+  if (currentTab === 'ranking') loadRankingData();
+}
+
+// ====== 全屏天气动画引擎 ======
+class PremiumWeatherEngine {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.bgParticles = [];
+    this.mouse = { x: -1000, y: -1000, active: false };
+    this.weatherType = 0;
+    this.w = 0; this.h = 0;
+    this.time = 0;
+    this.flashAlpha = 0;
+    this._initMouse();
+  }
+
+  _initMouse() {
+    const move = e => {
+      const r = this.canvas.getBoundingClientRect();
+      this.mouse.x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      this.mouse.y = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+      this.mouse.active = true;
+    };
+    this.canvas.addEventListener('mousemove', move);
+    this.canvas.addEventListener('touchmove', move, { passive: false });
+    this.canvas.addEventListener('mouseleave', () => { this.mouse.active = false; });
+    this.canvas.addEventListener('touchend', () => { this.mouse.active = false; });
+  }
+
+  resize(w, h) { this.w = w; this.h = h; this.canvas.width = w; this.canvas.height = h; }
+
+  setWeather(wmo) {
+    if (wmo <= 1) this.weatherType = 0;
+    else if (wmo <= 3) this.weatherType = 1;
+    else if (wmo >= 51 && wmo <= 82) this.weatherType = 2;
+    else if (wmo >= 71 && wmo <= 86) this.weatherType = 3;
+    else if (wmo >= 95) this.weatherType = 4;
+    else if (wmo >= 45 && wmo <= 48) this.weatherType = 5;
+    else this.weatherType = 0;
+    this._initParticles();
+  }
+
+  _initParticles() {
+    this.particles = [];
+    this.bgParticles = [];
+    let count, bgCount;
+    switch (this.weatherType) {
+      case 0: count = 50; bgCount = 20; break;
+      case 1: count = 25; bgCount = 10; break;
+      case 2: count = 200; bgCount = 30; break;
+      case 3: count = 140; bgCount = 20; break;
+      case 4: count = 35; bgCount = 15; break;
+      case 5: count = 50; bgCount = 15; break;
+      default: count = 40; bgCount = 15;
+    }
+    for (let i = 0; i < count; i++) {
+      const p = { x: Math.random() * this.w, y: Math.random() * this.h, vx: 0, vy: 0, size: 1, alpha: 0.5 + Math.random() * 0.5, rot: Math.random() * Math.PI * 2, rotV: 0 };
+      this._initBehavior(p, false);
+      this.particles.push(p);
+    }
+    for (let i = 0; i < bgCount; i++) {
+      const p = { x: Math.random() * this.w, y: Math.random() * this.h, vx: 0, vy: 0, size: 1, alpha: 0.15 + Math.random() * 0.2, rot: 0, rotV: 0 };
+      this._initBehavior(p, true);
+      this.bgParticles.push(p);
+    }
+  }
+
+  _initBehavior(p, isBg) {
+    const spd = isBg ? 0.4 : 1;
+    switch (this.weatherType) {
+      case 0:
+        p.vx = (Math.random() - 0.5) * 0.4 * spd;
+        p.vy = (-0.3 - Math.random() * 0.6) * spd;
+        p.size = isBg ? 2 + Math.random() * 3 : 1 + Math.random() * 2.5;
+        break;
+      case 1:
+        p.vx = (0.3 + Math.random() * 0.6) * spd;
+        p.vy = (Math.random() - 0.5) * 0.15 * spd;
+        p.size = isBg ? 50 + Math.random() * 60 : 25 + Math.random() * 45;
+        p.y = Math.random() * this.h * 0.7;
+        break;
+      case 2:
+        p.vy = (5 + Math.random() * 10) * spd;
+        p.vx = (-0.8 - Math.random() * 1.5) * spd;
+        p.size = isBg ? 0.3 + Math.random() * 0.5 : 0.5 + Math.random() * 1.5;
+        p.y = Math.random() * this.h;
+        p.x = Math.random() * this.w;
+        break;
+      case 3:
+        p.vy = (0.6 + Math.random() * 2.5) * spd;
+        p.vx = ((Math.random() - 0.5) * 2) * spd;
+        p.size = isBg ? 1 + Math.random() * 2 : 1.5 + Math.random() * 5;
+        p.rotV = (Math.random() - 0.5) * 0.03;
+        p.y = Math.random() * this.h;
+        break;
+      case 4:
+        p.vx = (0.6 + Math.random() * 1.5) * spd;
+        p.vy = ((Math.random() - 0.5) * 0.4) * spd;
+        p.size = isBg ? 50 + Math.random() * 60 : 20 + Math.random() * 50;
+        p.y = Math.random() * this.h * 0.5;
+        break;
+      case 5:
+        p.vx = (0.5 + Math.random() * 1.2) * spd;
+        p.vy = ((Math.random() - 0.5) * 0.3) * spd;
+        p.size = isBg ? 80 + Math.random() * 100 : 30 + Math.random() * 70;
+        break;
+    }
+  }
+
+  update() {
+    this.time++;
+    const ctx = this.ctx;
+    const w = this.w;
+    const h = this.h;
+
+    // Draw sky background
+    this._drawSky(ctx, w, h);
+
+    // Update & draw background layer
+    for (const p of this.bgParticles) { this._updateParticle(p); this._drawParticle(ctx, p, true); }
+    // Update & draw foreground layer
+    for (const p of this.particles) { this._updateParticle(p); this._drawParticle(ctx, p, false); }
+
+    // Draw static elements
+    this._drawStaticElements(ctx, w, h);
+
+    // Thunder effect
+    if (this.weatherType === 4) this._drawThunder(ctx, w, h);
+
+    // Flash fade
+    if (this.flashAlpha > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${this.flashAlpha})`;
+      ctx.fillRect(0, 0, w, h);
+      this.flashAlpha = Math.max(0, this.flashAlpha - 0.02);
+    }
+  }
+
+  _drawSky(ctx, w, h) {
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    switch (this.weatherType) {
+      case 0: grad.addColorStop(0, '#2980b9'); grad.addColorStop(0.5, '#6dd5fa'); grad.addColorStop(1, '#87CEEB'); break;
+      case 1: grad.addColorStop(0, '#3a6186'); grad.addColorStop(0.5, '#4a708b'); grad.addColorStop(1, '#778899'); break;
+      case 2: grad.addColorStop(0, '#141e30'); grad.addColorStop(0.5, '#243b55'); grad.addColorStop(1, '#2c3e50'); break;
+      case 3: grad.addColorStop(0, '#2c3e50'); grad.addColorStop(0.5, '#bdc3c7'); grad.addColorStop(1, '#ecf0f1'); break;
+      case 4: grad.addColorStop(0, '#0a0a1a'); grad.addColorStop(0.5, '#151530'); grad.addColorStop(1, '#1a1a2e'); break;
+      case 5: grad.addColorStop(0, '#bdc3c7'); grad.addColorStop(0.5, '#d5dbdb'); grad.addColorStop(1, '#aab7b8'); break;
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  _drawStaticElements(ctx, w, h) {
+    if (this.weatherType === 0) {
+      // Sun with glow
+      const sx = w * 0.78, sy = h * 0.22;
+      // Outer glow
+      for (let i = 4; i >= 0; i--) {
+        const glow = ctx.createRadialGradient(sx, sy, 30 + i * 25, sx, sy, 60 + i * 30);
+        glow.addColorStop(0, `rgba(255,240,200,${0.08 - i * 0.012})`);
+        glow.addColorStop(1, 'rgba(255,200,100,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(sx, sy, 60 + i * 30, 0, Math.PI * 2); ctx.fill();
+      }
+      // Sun body
+      const sunGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 45);
+      sunGrad.addColorStop(0, '#fffde7'); sunGrad.addColorStop(0.4, '#ffe082'); sunGrad.addColorStop(1, 'rgba(255,152,0,0)');
+      ctx.fillStyle = sunGrad;
+      ctx.beginPath(); ctx.arc(sx, sy, 45, 0, Math.PI * 2); ctx.fill();
+      // Rotating rays
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2 + this.time * 0.003;
+        const len = 60 + Math.sin(this.time * 0.04 + i * 1.5) * 20;
+        ctx.strokeStyle = `rgba(255,255,200,${0.08 + Math.sin(this.time * 0.04 + i) * 0.04})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * 48, sy + Math.sin(a) * 48);
+        ctx.lineTo(sx + Math.cos(a) * len, sy + Math.sin(a) * len);
+        ctx.stroke();
+      }
+    }
+
+    if (this.weatherType === 2 || this.weatherType === 4) {
+      // Rain splash zone at bottom
+      const splashGrad = ctx.createLinearGradient(0, h - 80, 0, h);
+      splashGrad.addColorStop(0, 'rgba(180,200,230,0)');
+      splashGrad.addColorStop(1, 'rgba(180,200,230,0.06)');
+      ctx.fillStyle = splashGrad;
+      ctx.fillRect(0, h - 80, w, 80);
+
+      // Random splashes
+      if (this.time % 3 === 0) {
+        for (let i = 0; i < 8; i++) {
+          const sx = Math.random() * w;
+          const sy = h - 5 - Math.random() * 30;
+          ctx.fillStyle = 'rgba(180,200,230,0.1)';
+          ctx.beginPath(); ctx.arc(sx, sy, 2 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+
+    if (this.weatherType === 3) {
+      // Snow ground accumulation glow
+      const snowGrad = ctx.createLinearGradient(0, h - 40, 0, h);
+      snowGrad.addColorStop(0, 'rgba(240,245,255,0)');
+      snowGrad.addColorStop(1, 'rgba(240,245,255,0.1)');
+      ctx.fillStyle = snowGrad;
+      ctx.fillRect(0, h - 40, w, 40);
+    }
+  }
+
+  _drawThunder(ctx, w, h) {
+    // Random lightning
+    if (Math.random() < 0.025) {
+      this.flashAlpha = 0.12 + Math.random() * 0.1;
+      const lx = w * 0.2 + Math.random() * w * 0.5;
+      // Main bolt
+      ctx.strokeStyle = 'rgba(255,255,240,0.9)';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(255,255,240,0.6)';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      let bx = lx, by = 0;
+      ctx.moveTo(bx, by);
+      while (by < h * 0.65) {
+        bx += (Math.random() - 0.5) * 35;
+        by += 15 + Math.random() * 35;
+        ctx.lineTo(bx, by);
+      }
+      ctx.stroke();
+      // Branch
+      ctx.lineWidth = 1;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(bx, by - 30);
+      let bbx = bx, bby = by - 30;
+      for (let i = 0; i < 3; i++) {
+        bbx += (Math.random() - 0.3) * 25;
+        bby += 10 + Math.random() * 20;
+        ctx.lineTo(bbx, bby);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  _updateParticle(p) {
+    if (this.mouse.active) {
+      const dx = p.x - this.mouse.x;
+      const dy = p.y - this.mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const range = 100;
+      if (dist < range) {
+        const f = (1 - dist / range);
+        switch (this.weatherType) {
+          case 0: p.vx += dx * f * 0.015; p.vy += dy * f * 0.015; break;
+          case 1: p.vx += dx * f * 0.008; p.vy += dy * f * 0.003; break;
+          case 2: p.vx -= dx * f * 0.04; p.vy -= dy * f * 0.04; break; // umbrella effect
+          case 3: p.vx += dx * f * 0.008; p.vy += dy * f * 0.003; p.rotV += (Math.random() - 0.5) * 0.02; break;
+          case 4: p.vx -= dx * f * 0.02; p.vy -= dy * f * 0.02; break;
+          case 5: p.vx += dx * f * 0.012; p.vy += dy * f * 0.003; break;
+        }
+      }
+    }
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.rotV) p.rot += p.rotV;
+    if (p.x > this.w + 80) p.x = -80;
+    if (p.x < -80) p.x = this.w + 80;
+    if (p.y > this.h + 80) p.y = -80;
+    if (p.y < -80) p.y = this.h + 80;
+    p.vx += (Math.random() - 0.5) * 0.04;
+    p.vx *= 0.9995;
+    p.vy *= 0.9995;
+  }
+
+  _drawParticle(ctx, p, isBg) {
+    const alpha = p.alpha;
+    ctx.save();
+    switch (this.weatherType) {
+      case 0: // Golden light motes
+        ctx.fillStyle = `rgba(255,255,220,${alpha * (isBg ? 0.3 : 0.7)})`;
+        ctx.shadowColor = `rgba(255,255,200,${alpha * 0.5})`;
+        ctx.shadowBlur = isBg ? 6 : 3;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 1: // Layered cloud puffs
+        ctx.fillStyle = `rgba(210,220,230,${alpha * (isBg ? 0.15 : 0.35)})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(230,235,240,${alpha * (isBg ? 0.1 : 0.25)})`;
+        ctx.beginPath(); ctx.arc(p.x - p.size * 0.25, p.y - p.size * 0.08, p.size * 0.65, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x + p.size * 0.3, p.y - p.size * 0.05, p.size * 0.55, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 2: // Rain streaks with trail
+        const rAlpha = alpha * (isBg ? 0.3 : 0.75);
+        ctx.strokeStyle = `rgba(170,200,240,${rAlpha})`;
+        ctx.lineWidth = p.size;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 2, p.y - 10 - (isBg ? 0 : 6));
+        ctx.stroke();
+        break;
+      case 3: // Snowflakes with rotation
+        ctx.fillStyle = `rgba(255,255,255,${alpha * (isBg ? 0.4 : 0.95)})`;
+        ctx.shadowColor = `rgba(255,255,255,${alpha * 0.4})`;
+        ctx.shadowBlur = isBg ? 2 : 4;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        // 6-point snowflake shape
+        if (!isBg && p.size > 3) {
+          for (let i = 0; i < 6; i++) {
+            ctx.rotate(Math.PI / 3);
+            ctx.fillRect(-p.size * 0.15, 0, p.size * 0.3, p.size * 0.8);
+          }
+        } else {
+          ctx.beginPath(); ctx.arc(0, 0, p.size, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+        break;
+      case 4: // Dark storm clouds
+        ctx.fillStyle = `rgba(30,35,55,${alpha * (isBg ? 0.3 : 0.55)})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(45,50,70,${alpha * (isBg ? 0.2 : 0.4)})`;
+        ctx.beginPath(); ctx.arc(p.x + p.size * 0.15, p.y - p.size * 0.1, p.size * 0.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x - p.size * 0.2, p.y, p.size * 0.6, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 5: // Fog banks
+        ctx.fillStyle = `rgba(225,230,235,${alpha * (isBg ? 0.12 : 0.22)})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x + p.size * 0.3, p.y + p.size * 0.05, p.size * 0.6, 0, Math.PI * 2); ctx.fill();
+        break;
+    }
+    ctx.restore();
+  }
+}
+
+// ====== 全屏天气详情 ======
+function openWeatherFullscreen(cityName) {
+  const city = allCityData.find(c => c.name === cityName);
+  if (!city) return;
+
+  fsCity = city;
+  const overlay = document.getElementById('weatherFullscreen');
+  overlay.style.display = 'flex';
+  overlay.classList.remove('exiting');
+  overlay.classList.add('entering');
+
+  // Populate text
+  document.getElementById('fsCityName').textContent = city.name;
+  const w = WEATHER_MAP[city.weatherCode] || { icon: '🌡️', text: '未知' };
+  document.getElementById('fsWeatherDesc').textContent = w.icon + ' ' + w.text;
+  const fsTemp = document.getElementById('fsTemp');
+  fsTemp.textContent = city.temp + '°';
+  fsTemp.style.color = tempColor(city.temp);
+  document.getElementById('fsHiLo').textContent = `体感 ${city.feelsLike ?? '--'}°`;
+
+  // Detail panel
+  const pm = pm2Color(city.pm25);
+  document.getElementById('fsDetailPanel').innerHTML = `
+    <div class="fs-detail-grid">
+      <div class="fs-det-item"><div class="fs-det-icon">🌡️</div><div class="fs-det-val">${city.temp}°</div><div class="fs-det-lbl">温度</div><div class="fs-det-sub">体感 ${city.feelsLike ?? '--'}°</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">💧</div><div class="fs-det-val">${city.humidity ?? '--'}%</div><div class="fs-det-lbl">湿度</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">🌬</div><div class="fs-det-val">${city.windSpeed ?? '--'}</div><div class="fs-det-lbl">风速 km/h</div><div class="fs-det-sub">${windDirLabel(city.windDirection)}</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">📊</div><div class="fs-det-val">${city.pressure ?? '--'}</div><div class="fs-det-lbl">气压 hPa</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">☁️</div><div class="fs-det-val">${city.cloudCover ?? '--'}%</div><div class="fs-det-lbl">云量</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">🌧</div><div class="fs-det-val">${city.precipitation ?? '0'}</div><div class="fs-det-lbl">降水 mm</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">🫁</div><div class="fs-det-val" style="color:${pm.cls.includes('good')?'#4ade80':pm.cls.includes('moderate')?'#facc15':pm.cls.includes('unhealthy')?'#f97316':'#ef4444'}">${city.pm25 ?? '--'}</div><div class="fs-det-lbl">PM2.5 µg/m³</div></div>
+      <div class="fs-det-item"><div class="fs-det-icon">🌍</div><div class="fs-det-val">${city.pm10 ?? '--'}</div><div class="fs-det-lbl">PM10 µg/m³</div></div>
+    </div>
+  `;
+
+  // Setup canvas
+  requestAnimationFrame(() => {
+    const wrap = document.getElementById('fsCanvasWrap');
+    const canvas = document.getElementById('fsCanvas');
+    const rect = wrap.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+
+    if (!fsAnim) fsAnim = new PremiumWeatherEngine(canvas);
+    fsAnim.resize(w, h);
+    fsAnim.setWeather(city.weatherCode);
+
+    if (fsAnim.rafId) cancelAnimationFrame(fsAnim.rafId);
+    (function loop() {
+      fsAnim.update();
+      fsAnim.rafId = requestAnimationFrame(loop);
+    })();
+  });
+}
+
+function closeWeatherFullscreen() {
+  const overlay = document.getElementById('weatherFullscreen');
+  overlay.classList.remove('entering');
+  overlay.classList.add('exiting');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+    overlay.classList.remove('exiting');
+    if (fsAnim && fsAnim.rafId) {
+      cancelAnimationFrame(fsAnim.rafId);
+      fsAnim.rafId = null;
+    }
+    fsCity = null;
+  }, 300);
+}
+
+// Resize handler for fullscreen canvas
+window.addEventListener('resize', () => {
+  if (!fsCity) return;
+  const wrap = document.getElementById('fsCanvasWrap');
+  const canvas = document.getElementById('fsCanvas');
+  if (!wrap || !canvas) return;
+  const rect = wrap.getBoundingClientRect();
+  if (fsAnim) fsAnim.resize(rect.width, rect.height);
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeWeatherFullscreen(); });
+
+// ====== 启动 ======
+function init() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  const cached = getCache();
+  if (cached && cached.length > 10) {
+    allCityData = cached;
+    rankingLoaded = true;
+  }
+
+  if (favorites.length > 0) {
+    loadDashboardData().catch(() => {});
+  } else if (rankingLoaded) {
+    renderDashboard();
+  } else {
+    document.getElementById('dashContent').innerHTML = '<div class="empty-state"><p>点击"温度排行"加载城市数据</p><p style="font-size:12px;margin-top:8px">加载后点击 ❤️ 收藏关注的城市</p></div>';
+  }
+
+  if (rankingLoaded) {
+    renderRanking();
+    document.getElementById('rankUpdateTime').textContent = '(缓存) 更新于 ' + formatTime(new Date());
+  }
+
+  setInterval(() => {
+    if (favorites.length > 0) loadDashboardData().catch(() => {});
+  }, 900000);
+
+  window.addEventListener('online', () => refreshData());
+}
+
+init();
+</script>
+</body>
+</html>

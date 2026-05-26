@@ -1,0 +1,12 @@
+node_modules
+.tmp
+dist
+.git
+*.bat
+*.vbs
+*.ps1
+create_shortcut.ps1
+install_rust.bat
+package.json
+package-lock.json
+.neuignore

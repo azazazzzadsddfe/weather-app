@@ -1,0 +1,15 @@
+node_modules/
+.tmp/
+dist/
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+*.apk
+*.aab
+*.bat
+*.ps1
+.vbs
+bin/
+.gradle/
+local.properties
