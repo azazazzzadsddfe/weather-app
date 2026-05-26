@@ -650,7 +650,8 @@ function renderRanking(filter = '') {
   let data = [...allCityData];
   if (filter) { const q = filter.toLowerCase(); data = data.filter(c => c.name.includes(q)); }
   data.sort((a, b) => b.temp - a.temp);
-  container.innerHTML = '<div class="rank-list">' + data.map((c, i) => {
+  const top20 = data.slice(0, 20);
+  container.innerHTML = '<div class="rank-list">' + top20.map((c, i) => {
     const w = WEATHER_MAP[c.weatherCode] || { icon: '🌡️', text: '未知' };
     const tCol = tempColor(c.temp);
     const pm = pm2Color(c.pm25);
