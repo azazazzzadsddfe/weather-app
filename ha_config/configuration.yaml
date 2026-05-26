@@ -1,0 +1,17 @@
+# Home Assistant Core 配置
+# 搭配天气 App 的设备控制功能使用
+
+default_config:
+
+http:
+  server_host: 0.0.0.0
+  server_port: 8123
+  cors_allowed_origins:
+    - http://localhost:*
+    - app://*
+
+# 米家设备通过 Xiaomi Home 集成添加
+# xiaomi_miio:
+
+logger:
+  default: info

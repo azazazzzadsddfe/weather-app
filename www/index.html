@@ -211,11 +211,13 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
       <div id="rankUpdateTime" class="update-time"></div>
     </div>
     <div id="devicesView" style="display:none">
-      <div class="add-device-row">
-        <input type="text" placeholder="设备名称" id="devName" style="flex:1.2">
-        <input type="text" placeholder="IP地址" id="devIp" style="flex:1">
-        <input type="text" placeholder="Token (32位)" id="devToken" style="flex:1.8">
-        <button class="add-device-btn" onclick="addDevice()">+ 添加</button>
+      <div id="haSetup" style="display:none">
+        <div class="add-device-row">
+          <input type="text" placeholder="HA 地址 (例: http://192.168.1.100:8123)" id="haUrl" style="flex:1.5">
+          <input type="password" placeholder="Long-Lived Access Token" id="haToken" style="flex:2">
+          <button class="add-device-btn" onclick="connectHA()">连接</button>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;margin-bottom:8px">在 HA → 用户资料 → 长期访问令牌 中创建</div>
       </div>
       <div id="devicesContent"><div class="loading-box"><p style="color:rgba(255,255,255,.3);font-size:13px">加载中...</p></div></div>
       <div class="server-status" id="serverStatus"></div>
@@ -817,80 +819,152 @@ function refreshData() {
   if (currentTab === 'ranking') loadRankingData();
 }
 
-// ====== 米家设备控制 ======
-const MI_SERVER = 'http://localhost:8765';
-let deviceList = [];
-
-async function miApi(method, path, body) {
-  try {
-    const opts = { method, headers: { 'Content-Type': 'application/json' } };
-    if (body) opts.body = JSON.stringify(body);
-    const resp = await fetch(MI_SERVER + path, opts);
-    return await resp.json();
-  } catch (e) {
-    return { error: '服务器未连接，请先运行 node tools/mi_server.js' };
-  }
+// ====== Home Assistant 设备控制 ======
+function haConfig() {
+  try { return JSON.parse(localStorage.getItem('ha_config') || '{}'); } catch { return {}; }
 }
+function haSave(cfg) { localStorage.setItem('ha_config', JSON.stringify(cfg)); }
+
+async function haApi(path, opts = {}) {
+  const cfg = haConfig();
+  if (!cfg.url || !cfg.token) throw new Error('HA 未配置');
+  const res = await fetch(cfg.url + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + cfg.token, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (!res.ok) throw new Error(`HA ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+function getEntityIcon(entityId, domain, state) {
+  const devClass = (state?.attributes?.device_class || '').toLowerCase();
+  if (domain === 'light') return '💡';
+  if (domain === 'switch' && state?.state === 'on') return '🔌';
+  if (domain === 'switch') return '🔌';
+  if (domain === 'fan') return '🪭';
+  if (domain === 'climate') return '🌡️';
+  if (domain === 'cover') return '🪟';
+  if (domain === 'lock') return '🔒';
+  if (domain === 'media_player') return '📺';
+  if (domain === 'vacuum') return '🧹';
+  if (domain === 'camera') return '📷';
+  if (devClass === 'temperature') return '🌡️';
+  if (devClass === 'humidity') return '💧';
+  if (devClass === 'pm25' || devClass === 'aqi') return '🌀';
+  if (devClass === 'power') return '⚡';
+  if (devClass === 'energy') return '🔋';
+  return '📟';
+}
+
+const CONTROLLABLE = ['switch', 'light', 'fan', 'cover', 'lock', 'media_player', 'climate', 'vacuum', 'water_heater'];
+const SENSOR_DOMAINS = ['sensor', 'binary_sensor'];
 
 async function loadDeviceList() {
-  const data = await miApi('GET', '/devices');
-  deviceList = data.devices || [];
-  renderDeviceList();
-  document.getElementById('serverStatus').textContent = data.error
-    ? '⚠️ ' + data.error
-    : deviceList.length + ' 台设备 · 服务器运行中';
-}
-
-function renderDeviceList() {
-  const container = document.getElementById('devicesContent');
-  if (deviceList.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>还没有添加设备</p><p style="font-size:12px;margin-top:6px">在上面输入设备名称、IP 地址和 Token 添加设备<br>Token 获取方式：参考 tools/mi_server.js 中的说明</p></div>';
+  const cfg = haConfig();
+  if (!cfg.url || !cfg.token) {
+    document.getElementById('haSetup').style.display = '';
+    document.getElementById('devicesContent').innerHTML = '<div class="empty-state"><p>连接 Home Assistant</p><p style="font-size:12px;margin-top:6px">输入 HA 地址和长期访问令牌</p></div>';
+    document.getElementById('serverStatus').textContent = 'HA 未连接';
     return;
   }
-  const iconMap = { 'light': '💡', 'plug': '🔌', 'sensor': '🌡️', 'air': '🌀', 'fan': '🪭', 'camera': '📷', 'default': '📟' };
-  container.innerHTML = deviceList.map((d, i) => {
-    const icon = iconMap[d.model] || iconMap.default;
-    const powerOn = d.state?.power === 'on';
-    return `
-    <div class="device-card${d.online ? '' : ' offline'}" style="animation-delay:${i * 0.04}s">
+  document.getElementById('haSetup').style.display = 'none';
+  document.getElementById('serverStatus').textContent = '连接中...';
+
+  try {
+    const states = await haApi('/api/states');
+    const controllable = states.filter(s => CONTROLLABLE.includes(s.entity_id.split('.')[0]));
+    const sensors = states.filter(s => SENSOR_DOMAINS.includes(s.entity_id.split('.')[0])
+      && s.attributes.device_class && s.state !== 'unavailable' && s.state !== 'unknown');
+
+    document.getElementById('serverStatus').textContent = `${controllable.length} 个可控设备 · HA 已连接`;
+
+    const container = document.getElementById('devicesContent');
+    if (controllable.length === 0 && sensors.length === 0) {
+      container.innerHTML = '<div class="empty-state"><p>HA 中未发现设备</p><p style="font-size:12px;margin-top:6px">请确认米家设备已通过 Xiaomi Home 集成添加到 HA</p></div>';
+      return;
+    }
+
+    let html = '';
+    controllable.forEach((s, i) => {
+      const [domain, id] = s.entity_id.split('.');
+      const icon = getEntityIcon(s.entity_id, domain, s);
+      const isOn = s.state === 'on' || s.state === 'playing' || s.state === 'open' || s.state === 'locked' || s.state === 'home';
+      const friendlyName = s.attributes.friendly_name || id;
+      const sub = (isOn ? '● 已开启' : '○ 已关闭') + ' · ' + domain;
+      const delay = (i * 0.03).toFixed(2);
+      html += `
+    <div class="device-card" style="animation-delay:${delay}s">
       <div class="device-icon">${icon}</div>
       <div class="device-info">
-        <div class="device-name">${d.name}</div>
-        <div class="device-sub">${d.online ? (powerOn ? '● 已开启' : '○ 已关闭') : '⚪ 离线'} · ${d.model || d.ip}</div>
+        <div class="device-name">${friendlyName}</div>
+        <div class="device-sub">${sub}</div>
       </div>
       <label class="toggle-switch">
-        <input type="checkbox" ${powerOn ? 'checked' : ''} ${d.online ? '' : 'disabled'}
-          onchange="toggleDevice('${d.ip}', this.checked)">
+        <input type="checkbox" ${isOn ? 'checked' : ''} onchange="toggleHA('${s.entity_id}', this.checked)">
         <span class="toggle-slider"></span>
       </label>
-      <span style="color:rgba(255,255,255,.15);font-size:18px;cursor:pointer;padding:4px"
-            onclick="removeDevice('${d.ip}')" title="删除设备">×</span>
     </div>`;
-  }).join('');
+    });
+
+    // Show key sensors
+    sensors.slice(0, 6).forEach((s, i) => {
+      const id = s.entity_id.split('.')[1];
+      const icon = getEntityIcon(s.entity_id, 'sensor', s);
+      const friendlyName = s.attributes.friendly_name || id;
+      const unit = s.attributes.unit_of_measurement || '';
+      html += `
+    <div class="device-card" style="animation-delay:${(controllable.length + i) * 0.03}s">
+      <div class="device-icon">${icon}</div>
+      <div class="device-info">
+        <div class="device-name">${friendlyName}</div>
+        <div class="device-sub">${s.state} ${unit}</div>
+      </div>
+    </div>`;
+    });
+
+    container.innerHTML = html;
+  } catch (e) {
+    document.getElementById('serverStatus').textContent = '⚠️ 连接失败: ' + e.message;
+    document.getElementById('devicesContent').innerHTML = '<div class="empty-state"><p>无法连接到 HA</p><p style="font-size:12px;margin-top:6px">检查地址和 Token 是否正确<br>HA 地址示例: http://192.168.1.100:8123</p></div>';
+    document.getElementById('haSetup').style.display = '';
+  }
 }
 
-async function addDevice() {
-  const name = document.getElementById('devName').value.trim();
-  const ip = document.getElementById('devIp').value.trim();
-  const token = document.getElementById('devToken').value.trim();
-  if (!name || !ip || !token) { alert('请填写完整的设备信息'); return; }
-  const result = await miApi('POST', '/devices', { name, ip, token });
-  if (result.error) { alert(result.error); return; }
-  document.getElementById('devName').value = '';
-  document.getElementById('devIp').value = '';
-  document.getElementById('devToken').value = '';
+async function connectHA() {
+  const url = document.getElementById('haUrl').value.trim().replace(/\/+$/, '');
+  const token = document.getElementById('haToken').value.trim();
+  if (!url || !token) { alert('请填写 HA 地址和 Token'); return; }
+  haSave({ url, token });
+  document.getElementById('haUrl').value = '';
+  document.getElementById('haToken').value = '';
   loadDeviceList();
 }
 
-async function removeDevice(ip) {
-  await miApi('DELETE', '/devices/' + encodeURIComponent(ip));
-  loadDeviceList();
-}
-
-async function toggleDevice(ip, on) {
-  const result = await miApi('POST', '/control', { ip, action: on ? 'on' : 'off' });
-  if (result.error) { alert('控制失败: ' + result.error); }
-  loadDeviceList();
+async function toggleHA(entityId, on) {
+  const [domain] = entityId.split('.');
+  const serviceMap = {
+    light: on ? 'turn_on' : 'turn_off',
+    switch: on ? 'turn_on' : 'turn_off',
+    fan: on ? 'turn_on' : 'turn_off',
+    cover: on ? 'open_cover' : 'close_cover',
+    lock: on ? 'lock' : 'unlock',
+    media_player: on ? 'turn_on' : 'turn_off',
+    climate: on ? 'turn_on' : 'turn_off',
+    vacuum: on ? 'start' : 'return_to_base',
+    water_heater: on ? 'turn_on' : 'turn_off',
+  };
+  const service = serviceMap[domain];
+  if (!service) return;
+  try {
+    await haApi(`/api/services/${domain}/${service}`, {
+      method: 'POST',
+      body: JSON.stringify({ entity_id: entityId })
+    });
+    loadDeviceList();
+  } catch (e) {
+    alert('控制失败: ' + e.message);
+    loadDeviceList();
+  }
 }
 
 // ====== 全屏天气动画引擎 ======
