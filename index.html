@@ -90,6 +90,18 @@ body::after{content:'';position:fixed;bottom:-300px;right:-300px;width:800px;hei
 .search-bar input::placeholder{color:rgba(255,255,255,.3)}
 .search-bar .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,.3);font-size:14px;pointer-events:none}
 
+.suggest-box{position:absolute;top:100%;left:0;right:0;background:rgba(15,23,42,.95);border:1px solid rgba(255,255,255,.12);border-radius:12px;margin-top:4px;overflow:hidden;z-index:20;backdrop-filter:blur(24px);box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.suggest-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;transition:all .15s;border-bottom:1px solid rgba(255,255,255,.04)}
+.suggest-item:last-child{border-bottom:none}
+.suggest-item:hover{background:rgba(255,255,255,.06)}
+.suggest-item:active{background:rgba(255,255,255,.1)}
+.suggest-item .s-name{font-size:14px;color:#e2e8f0;font-weight:500}
+.suggest-item .s-add{font-size:18px;color:rgba(255,255,255,.25);transition:all .2s}
+.suggest-item:hover .s-add{color:#f59e0b}
+.suggest-item.added .s-add{color:#f59e0b}
+.fav-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.fav-header span{font-size:13px;color:rgba(255,255,255,.35);font-weight:500}
+
 /* ====== Loading / Error ====== */
 .loading-box{text-align:center;padding:40px 20px}
 .loading-spin{width:32px;height:32px;border:3px solid rgba(255,255,255,.1);border-top-color:rgba(255,255,255,.5);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
@@ -164,7 +176,8 @@ body::after{content:'';position:fixed;bottom:-300px;right:-300px;width:800px;hei
 
   <div id="viewContainer" class="view-container">
     <div id="dashboardView">
-      <div class="search-bar"><span class="search-icon">🔍</span><input type="text" placeholder="搜索城市..." oninput="filterDashboard(this.value)" id="dashSearch"></div>
+      <div class="search-bar"><span class="search-icon">🔍</span><input type="text" placeholder="搜索城市添加到收藏..." oninput="searchCitySuggest(this.value)" onfocus="searchCitySuggest(this.value)" id="dashSearch"></div>
+      <div id="suggestList"></div>
       <div id="dashContent"><div class="loading-box"><div class="loading-spin"></div><p style="color:rgba(255,255,255,.3);font-size:13px">加载天气数据...</p></div></div>
       <div id="dashUpdateTime" class="update-time"></div>
     </div>
@@ -448,10 +461,11 @@ async function fetchWithRetry(url, retries = 2) {
 async function fetchCityQWeather(city) {
   const [wResp, aResp] = await Promise.all([
     fetchWithRetry(`https://n22k5pxg2t.re.qweatherapi.com/v7/weather/now?location=${city.lon},${city.lat}&key=${QW_KEY}`),
-    fetchWithRetry(`https://n22k5pxg2t.re.qweatherapi.com/v7/air/now?location=${city.lon},${city.lat}&key=${QW_KEY}`).catch(() => null)
+    fetchWithRetry(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=pm2_5,pm10,european_aqi`).catch(() => null)
   ]);
   const w = (await wResp.json()).now;
-  const a = aResp ? (await aResp.json()).now : null;
+  const aJson = aResp ? await aResp.json().catch(() => null) : null;
+  const a = aJson ? aJson.current : null;
   return {
     name: city.name,
     temp: parseInt(w.temp),
@@ -463,9 +477,9 @@ async function fetchCityQWeather(city) {
     cloudCover: parseInt(w.cloud) || null,
     precipitation: parseFloat(w.precip),
     weatherCode: qwIconToWmo(w.icon),
-    pm25: a ? parseFloat(a.pm2p5) : null,
+    pm25: a ? parseFloat(a.pm2_5) : null,
     pm10: a ? parseFloat(a.pm10) : null,
-    aqi: a ? parseInt(a.category) : null
+    aqi: a ? parseInt(a.european_aqi) : null
   };
 }
 
@@ -595,20 +609,16 @@ async function loadAllData() {
 // ====== 渲染 ======
 function renderDashboard(filter = '') {
   const container = document.getElementById('dashContent');
-  let data = allCityData.length > 0 ? allCityData : [];
-  if (data.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>请先加载排行数据，然后点击❤️收藏城市</p><p style="font-size:12px;margin-top:8px">或者点击"温度排行"标签查看所有城市</p></div>';
-    return;
-  }
+  let data = allCityData.length > 0 ? [...allCityData] : [];
   data = data.filter(c => favorites.includes(c.name));
   if (filter) { const q = filter.toLowerCase(); data = data.filter(c => c.name.includes(q)); }
   data.sort((a, b) => b.temp - a.temp);
-  if (data.length === 0 && favorites.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>前往"温度排行"标签，点击城市旁的 ❤️ 收藏</p></div>';
+  if (data.length === 0 && allCityData.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
     return;
   }
   if (data.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>未找到匹配城市</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>上方搜索城市名，点击添加即可收藏</p></div>';
     return;
   }
   const sorted = [...allCityData].filter(c => favorites.includes(c.name)).sort((a, b) => b.temp - a.temp);
@@ -620,7 +630,10 @@ function renderDashboard(filter = '') {
     const rank = rankMap.get(c.name);
     return `
     <div class="glass-card" style="animation-delay:${idx * 0.04}s" onclick="openWeatherFullscreen('${c.name}')">
-      <div class="city-card">
+      <div class="city-card" style="position:relative">
+        <span style="position:absolute;top:0;right:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:18px;cursor:pointer;z-index:5;transition:color .2s"
+              onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='rgba(255,255,255,.2)'"
+              onclick="event.stopPropagation();removeFav('${c.name}')">×</span>
         <div class="rank-num">${rank || '-'}</div>
         <div class="city-info">
           <div class="city-name">${c.name}</div>
@@ -679,14 +692,67 @@ function toggleFav(name) {
     favorites = favorites.filter(f => f !== name);
   } else {
     favorites.push(name);
+    // Reload data for the new favorite
+    loadDashboardData().catch(() => {});
   }
   localStorage.setItem('wx_fav', JSON.stringify(favorites));
   renderRanking(document.getElementById('rankSearch')?.value || '');
-  if (currentTab === 'dashboard') renderDashboard(document.getElementById('dashSearch')?.value || '');
+  if (currentTab === 'dashboard') {
+    searchCitySuggest(document.getElementById('dashSearch')?.value || '');
+  }
 }
 
 function filterDashboard(v) { renderDashboard(v); }
 function filterRanking(v) { renderRanking(v); }
+
+function searchCitySuggest(query) {
+  const box = document.getElementById('suggestList');
+  if (!query || query.trim().length === 0) {
+    box.innerHTML = '';
+    renderDashboard('');
+    return;
+  }
+  const q = query.trim().toLowerCase();
+  const matches = CITIES
+    .filter(c => c.name.toLowerCase().includes(q))
+    .slice(0, 8);
+  if (matches.length === 0) {
+    box.innerHTML = '<div style="padding:10px 14px;color:rgba(255,255,255,.25);font-size:13px">未找到匹配城市</div>';
+    renderDashboard(q);
+    return;
+  }
+  box.innerHTML = '<div class="suggest-box">' + matches.map(c => {
+    const added = favorites.includes(c.name);
+    return `<div class="suggest-item${added ? ' added' : ''}" onclick="addFav('${c.name}')">
+      <span class="s-name">${c.name}</span>
+      <span class="s-add">${added ? '✓' : '+'}</span>
+    </div>`;
+  }).join('') + '</div>';
+  renderDashboard(q);
+}
+
+function addFav(name) {
+  if (!favorites.includes(name)) {
+    favorites.push(name);
+    localStorage.setItem('wx_fav', JSON.stringify(favorites));
+    searchCitySuggest(document.getElementById('dashSearch')?.value || '');
+    loadDashboardData().catch(() => {});
+  }
+}
+
+function removeFav(name) {
+  favorites = favorites.filter(f => f !== name);
+  localStorage.setItem('wx_fav', JSON.stringify(favorites));
+  searchCitySuggest(document.getElementById('dashSearch')?.value || '');
+  renderDashboard('');
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.search-bar') && !e.target.closest('.suggest-box')) {
+    document.getElementById('suggestList').innerHTML = '';
+  }
+});
 
 function switchTab(tab) {
   currentTab = tab;
